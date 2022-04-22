@@ -1,8 +1,6 @@
 # Knowledge Stack
 This is a basic application for managing acquired knowledge (books, basically).
 
-It's a bit of a mess now because I started by using MongoDB then switched to NEO4J, but in the next few weeks I'll be handling and sorting everything out.
-
 ### Technology Used
 
 - `Node.js` backend;
@@ -12,3 +10,5 @@ It's a bit of a mess now because I started by using MongoDB then switched to NEO
 - `React` frontend;
 
 This `README.md` file will also be updated as I arrange the whole project more neatly.
+
+**note** accidentally commited /node_modules, don't think there's any changing that now :(
