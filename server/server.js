@@ -11,6 +11,7 @@ app.use(express.json())
 app.use(routes)
 
 const db = require('./db/neo4j.js')
+
 const {
     NEO4J_URI,
     NEO4J_USER,

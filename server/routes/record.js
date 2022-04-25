@@ -1,6 +1,7 @@
 const express = require('express')
-const { int, session } = require('neo4j-driver')
+const { int } = require('neo4j-driver')
 const db = require('../db/neo4j.js')
+const aws = require('../db/aws.js')
 
 const router = express.Router()
 
@@ -8,6 +9,7 @@ const router = express.Router()
 router.get('/', async (req, res) => {
     const driver = db.getDriver()
     const session = driver.session()
+    const s3 = aws.createAWSClient(process.env.AWS_REGION)
 
     try {
         const response = await session.readTransaction(tx => {
@@ -15,15 +17,23 @@ router.get('/', async (req, res) => {
         })
 
         const nodes = response.records.map(row => {
+            const bookId = row.get('book').identity.toNumber()
             const book = row.get('book').properties
             const entry = {
+                id: bookId,
                 title: book.title,
                 pages: book.pages.toNumber(),
                 year: book.year.toNumber(),
-                read: book.read
+                read: book.read,
+                cover: null
             }
             return entry
         })
+
+        for (let i = 0; i < nodes.length; i++) {
+            const coverUrl = await aws.getCoverUrl(process.env.AWS_BUCKET, nodes[i].id)
+            nodes[i].cover = coverUrl
+        }
         
         return res.json(nodes)
 
