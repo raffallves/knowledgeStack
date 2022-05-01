@@ -13,23 +13,31 @@ router.get('/', async (req, res) => {
 
     try {
         const response = await session.readTransaction(tx => {
-            return tx.run(`MATCH (book:Book) RETURN book LIMIT 10`)
+            return tx.run(`MATCH (book:Book)<--(author) WITH author, book RETURN book, collect(author) AS authors LIMIT 10`)
         })
 
         const nodes = response.records.map(row => {
-            const bookId = row.get('book').identity.toNumber()
-            const book = row.get('book').properties
+            const authors = row.get('authors')
+            const book = row.get('book')
+
             const entry = {
-                id: bookId,
-                title: book.title,
-                pages: book.pages.toNumber(),
-                year: book.year.toNumber(),
-                read: book.read,
+                id: book.identity.toNumber(),
+                title: book.properties.title,
+                pages: book.properties.pages.toNumber(),
+                year: book.properties.year.toNumber(),
+                read: book.properties.read,
+                authors: authors.map(node => {
+                    const author = {
+                        id: node.identity.toNumber(),
+                        name: node.properties.first_name + ' ' + node.properties.last_name
+                    }
+                    return author
+                }),
                 cover: null
             }
             return entry
         })
-
+        // Authors come duplicated, so it screws up the UI -> fix it
         for (let i = 0; i < nodes.length; i++) {
             const coverUrl = await aws.getCoverUrl(process.env.AWS_BUCKET, nodes[i].id)
             nodes[i].cover = coverUrl

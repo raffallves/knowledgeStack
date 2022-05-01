@@ -6,7 +6,7 @@ This is a basic application for managing acquired knowledge (books, basically).
 - `Node.js` backend;
 - `Express.js` for API route management;
 - `NEO4J` graph database;
-- AWS S3 for content storage and delivery;
+- `AWS S3` for content storage and delivery;
 - `React` frontend;
 
 This `README.md` file will also be updated as I arrange the whole project more neatly.
