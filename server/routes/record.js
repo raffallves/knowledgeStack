@@ -6,7 +6,7 @@ const aws = require('../db/aws.js')
 
 const router = express.Router()
 
-// Get list of all records
+// Get list of initial records
 router.get('/', async (req, res) => {
     const driver = db.getDriver()
     const session = driver.session()
@@ -14,7 +14,11 @@ router.get('/', async (req, res) => {
 
     try {
         const response = await session.readTransaction(tx => {
-            return tx.run(`MATCH (book:Book)<--(author) WITH author, book RETURN book, collect(author) AS authors LIMIT 30`)
+            return tx.run(`MATCH (book:Book)<--(author) 
+                           WITH author, book 
+                           RETURN book, collect(author) AS authors
+                           ORDER BY id(book)
+                           LIMIT 30`)
         })
 
         const nodes = response.records.map(row => {
@@ -53,11 +57,62 @@ router.get('/', async (req, res) => {
     }
 })
 
-// Get record by id
-// router.get('/record/:id', (req, res) => {
+// Get more records
+router.get('/more/:skip', async (req, res) => {
+    const driver = db.getDriver()
+    const session = driver.session()
+    const s3 = aws.createAWSClient(process.env.AWS_REGION)
     
-// })
+    try {
+        const skip = int(parseInt(req.params.skip, 10))
 
+        const response = await session.readTransaction(tx => {
+            return tx.run(`MATCH (book:Book)<--(author)
+                           WITH author, book
+                           RETURN book, collect(author) AS authors
+                           ORDER BY id(book)
+                           SKIP $skip
+                           LIMIT 30`, {skip})
+        })
+
+        const nodes = response.records.map(row => {
+            const authors = row.get('authors')
+            const book = row.get('book')
+
+            const entry = {
+                id: book.identity.toNumber(),
+                title: book.properties.title,
+                pages: book.properties.pages.toNumber(),
+                year: book.properties.year.toNumber(),
+                read: book.properties.read,
+                authors: authors.map(node => {
+                    const author = {
+                        id: node.identity.toNumber(),
+                        name: node.properties.first_name + ' ' + node.properties.last_name
+                    }
+                    return author
+                }),
+                cover: null
+            }
+            return entry
+        })
+
+        for (let i = 0; i < nodes.length; i++) {
+            const coverUrl = await aws.getCoverUrl(process.env.AWS_BUCKET, nodes[i].id)
+            nodes[i].cover = coverUrl
+        }
+
+        return res.json(nodes)
+
+    } catch (e) {
+        console.error(e)
+    } finally {
+        await session.close()
+    }
+})
+
+
+// Add book
 router.post('/', async (req, res) => {
     const driver = db.getDriver()
     const session = driver.session()
