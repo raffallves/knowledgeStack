@@ -145,4 +145,32 @@ router.post('/', async (req, res) => {
     }
 })
 
+
+
+// Mark book as read
+router.put('/read', async (req, res) => {
+    const driver = db.getDriver()
+    const session = driver.session()
+
+    try {
+        const read = req.body.read
+        const title = req.body.title
+
+        const response = await session.writeTransaction(tx => {
+            return tx.run(`MATCH (book:Book) WHERE book.title = $title
+                           SET book.read = $read
+                           RETURN book`, {title, read})
+        })
+
+        const node = response.records[0].get('book')
+
+        return res.send('Ok, edited node: ' + node)
+
+    } catch (e) {
+        console.error(e)
+    } finally {
+        await session.close()
+    }
+})
+
 module.exports = router
