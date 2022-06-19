@@ -111,6 +111,58 @@ router.get('/more/:skip', async (req, res) => {
     }
 })
 
+// Search book by title
+router.get('/search/:query', async (req, res) => {
+    const driver = db.getDriver()
+    const session = driver.session()
+    
+    try {
+        const query = req.params.query
+        const regex = `(?i).*${query}.*`
+
+        const response = await session.readTransaction(tx => {
+            return tx.run(`MATCH (book:Book)<--(author)
+                           WITH author, book
+                           WHERE book.title =~ $regex
+                           RETURN book, collect(author) AS authors
+                           ORDER BY id(book)`, {regex})
+        })
+
+        const nodes = response.records.map(row => {
+            const authors = row.get('authors')
+            const book = row.get('book')
+
+            const entry = {
+                id: book.identity.toNumber(),
+                title: book.properties.title,
+                pages: book.properties.pages.toNumber(),
+                year: book.properties.year.toNumber(),
+                read: book.properties.read,
+                authors: authors.map(node => {
+                    const author = {
+                        id: node.identity.toNumber(),
+                        name: node.properties.first_name + ' ' + node.properties.last_name
+                    }
+                    return author
+                }),
+                cover: null
+            }
+            return entry
+        })
+
+        for (let i = 0; i < nodes.length; i++) {
+            const coverUrl = await aws.getCoverUrl(process.env.AWS_BUCKET, nodes[i].id)
+            nodes[i].cover = coverUrl
+        }
+
+        return res.json(nodes)
+    } catch (e) {
+        console.error(e)
+    } finally {
+        session.close()
+    }
+})
+
 
 // Add book
 router.post('/', async (req, res) => {
