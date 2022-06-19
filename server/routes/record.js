@@ -7,20 +7,23 @@ const aws = require('../db/aws.js')
 const router = express.Router()
 
 // Get list of initial records
-router.get('/', async (req, res) => {
+router.get('/:read', async (req, res) => {
     const driver = db.getDriver()
     const session = driver.session()
     const s3 = aws.createAWSClient(process.env.AWS_REGION)
 
     try {
+        const haveRead = req.params.read === 'true' ? true : false
+
         const response = await session.readTransaction(tx => {
             return tx.run(`MATCH (book:Book)<--(author) 
-                           WITH author, book 
+                           WITH author, book
+                           WHERE book.read = $haveRead
                            RETURN book, collect(author) AS authors
                            ORDER BY id(book)
-                           LIMIT 30`)
+                           LIMIT 30`, {haveRead})
         })
-
+        
         const nodes = response.records.map(row => {
             const authors = row.get('authors')
             const book = row.get('book')
@@ -58,21 +61,23 @@ router.get('/', async (req, res) => {
 })
 
 // Get more records
-router.get('/more/:skip', async (req, res) => {
+router.get('/more/:read/:skip', async (req, res) => {
     const driver = db.getDriver()
     const session = driver.session()
     const s3 = aws.createAWSClient(process.env.AWS_REGION)
     
     try {
         const skip = int(parseInt(req.params.skip, 10))
+        const haveRead = req.params.read === 'true' ? true : false
 
         const response = await session.readTransaction(tx => {
             return tx.run(`MATCH (book:Book)<--(author)
                            WITH author, book
+                           WHERE book.read = $haveRead
                            RETURN book, collect(author) AS authors
                            ORDER BY id(book)
                            SKIP $skip
-                           LIMIT 30`, {skip})
+                           LIMIT 30`, {skip, haveRead})
         })
 
         const nodes = response.records.map(row => {
