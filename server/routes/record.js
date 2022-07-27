@@ -1,5 +1,8 @@
 const express = require('express')
 const { int } = require('neo4j-driver')
+const multer = require('multer')
+const storage = multer.memoryStorage()
+const upload = multer({ storage: storage })
 const sortAuthorNames = require('../utils/sortAuthorNames')
 const db = require('../db/neo4j.js')
 const aws = require('../db/aws.js')
@@ -170,7 +173,7 @@ router.get('/search/:query', async (req, res) => {
 
 
 // Add book
-router.post('/', async (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
     const driver = db.getDriver()
     const session = driver.session()
     const s3 = aws.createAWSClient(process.env.AWS_REGION)
@@ -179,8 +182,8 @@ router.post('/', async (req, res) => {
         const title = req.body.title
         const year = int(req.body.year)
         const pages = int(req.body.pages)
-        const read = req.body.read
-        const authors = sortAuthorNames(req.body.authors)
+        const read = req.body.read === "no" ? false : true
+        const authors = sortAuthorNames(req.body.author)
         
         const response = await session.writeTransaction(tx => {
             return tx.run(`UNWIND $authors AS author
@@ -191,9 +194,13 @@ router.post('/', async (req, res) => {
                            RETURN a, r, book`, {title, year, pages, read, authors})
         })
 
-        const node = response.records[0].get('book')
-
-        return res.status(201).send('Created record: ' + node)
+        const id = response.records[0].get('book').identity.toNumber()
+        
+        const cover = req.file.buffer
+        
+        const uploadedCover = aws.uploadCover(s3, process.env.AWS_BUCKET, id, cover)
+        
+        return res.status(201).send('Created record: ' + id + ', File uploaded: ' + uploadedCover)
 
     } catch (e) {
         console.error(e)
