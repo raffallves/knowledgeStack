@@ -9,6 +9,14 @@ const aws = require('../db/aws.js')
 
 const router = express.Router()
 
+// Send login auth token
+router.post('/login', (req, res) => {
+    
+    res.send({
+        token: 'test#$%'
+    })
+})
+
 // Get list of initial records
 router.get('/:read', async (req, res) => {
     const driver = db.getDriver()
